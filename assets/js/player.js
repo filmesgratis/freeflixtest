@@ -20,7 +20,6 @@ if(videoId){
 const FIREBASE_PROJECT_ID = "freeflix-82019";
 const FIREBASE_API_KEY = "AIzaSyAP6Y1uiOEafLGfry27UiBso1ShV1C2uJk";
 
-/* ✅ CORRIGIDO: remove o ' perdido no host */
 const baseUrl =
 `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/comments?key=${FIREBASE_API_KEY}`;
 
@@ -28,6 +27,7 @@ const listaEl = document.getElementById("listaComentarios");
 const nomeEl = document.getElementById("nomeComentario");
 const textoEl = document.getElementById("textoComentario");
 
+/* ====== CARREGAR COMENTÁRIOS (corrigido) ====== */
 async function carregarComentarios(){
   if(!videoId || !listaEl) return;
 
@@ -55,21 +55,20 @@ async function carregarComentarios(){
     const res = await fetch(queryUrl,{
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify(body)
+      body: JSON.stringify(body)
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(()=>null);
 
-    /* ✅ NOVO: se der erro, mostra no console + feedback simples na tela */
+    // ✅ Se deu erro de permissão / query / etc, agora aparece
     if(!res.ok || data?.error){
-      console.error("Erro ao carregar comentários (runQuery):", res.status, data);
-      listaEl.innerHTML = `<div class="comentario-item">Não foi possível carregar os comentários.</div>`;
+      console.error("Erro ao buscar comentários (runQuery):", res.status, data);
+      listaEl.innerHTML = `<div class="comentario-item">Erro ao carregar comentários.</div>`;
       return;
     }
 
-    const docs = (data || []).map(d=>d.document).filter(Boolean);
+    const docs = (data || []).map(d => d.document).filter(Boolean);
 
-    /* ✅ NOVO: mensagem quando não tem comentários */
     if(docs.length === 0){
       listaEl.innerHTML = `<div class="comentario-item">Sem comentários ainda.</div>`;
       return;
@@ -77,23 +76,28 @@ async function carregarComentarios(){
 
     listaEl.innerHTML = docs.map(d=>{
       const f = d.fields || {};
-      const when = f.createdAt?.timestampValue ? new Date(f.createdAt.timestampValue).toLocaleString("pt-BR") : "";
+      const when = f.createdAt?.timestampValue
+        ? new Date(f.createdAt.timestampValue).toLocaleString("pt-BR")
+        : "";
+
       return `
         <div class="comentario-item">
           <div class="comentario-topo">
-            <div class="comentario-nome">${f.name?.stringValue||"Anônimo"}</div>
+            <div class="comentario-nome">${f.name?.stringValue || "Anônimo"}</div>
             <div>${when}</div>
           </div>
-          <div class="comentario-texto">${(f.text && f.text.stringValue) ? f.text.stringValue : ""}</div>
+          <div class="comentario-texto">${f.text?.stringValue || ""}</div>
         </div>
       `;
     }).join("");
+
   }catch(e){
-    console.error("Falha geral ao carregar comentários:", e);
+    console.error("Erro geral ao carregar comentários:", e);
     listaEl.innerHTML = `<div class="comentario-item">Erro ao carregar comentários.</div>`;
   }
 }
 
+/* ====== ENVIAR COMENTÁRIO (leve ajuste) ====== */
 async function enviarComentario(){
   if(!videoId || !textoEl || !textoEl.value.trim()) return;
 
@@ -110,22 +114,20 @@ async function enviarComentario(){
     const res = await fetch(baseUrl,{
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify(payload)
+      body: JSON.stringify(payload)
     });
 
-    const data = await res.json();
-
-    /* ✅ NOVO: se der erro, mostra no console */
-    if(!res.ok || data?.error){
-      console.error("Erro ao enviar comentário:", res.status, data);
+    // ✅ Se der erro no POST, agora aparece
+    if(!res.ok){
+      const err = await res.json().catch(()=>null);
+      console.error("Erro ao enviar comentário:", res.status, err);
       return;
     }
 
     textoEl.value="";
-    /* ✅ NOVO: garante recarregar depois do POST */
     await carregarComentarios();
   }catch(e){
-    console.error("Falha geral ao enviar comentário:", e);
+    console.error("Erro geral ao enviar comentário:", e);
   }
 }
 
