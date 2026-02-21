@@ -14,9 +14,7 @@ if(videoId){
   }
 }
 
-/* ================= FIREBASE CONFIG =================
-   ATENÇÃO: coloque sua API KEY abaixo se for usar Firestore.
-*/
+/* ================= FIREBASE CONFIG ================= */
 const FIREBASE_PROJECT_ID = "freeflix-82019";
 const FIREBASE_API_KEY = "AIzaSyAP6Y1uiOEafLGfry27UiBso1ShV1C2uJk";
 
@@ -27,54 +25,44 @@ const listaEl = document.getElementById("listaComentarios");
 const nomeEl = document.getElementById("nomeComentario");
 const textoEl = document.getElementById("textoComentario");
 
-/* ====== CARREGAR COMENTÁRIOS (corrigido) ====== */
+/* ====== CARREGAR COMENTÁRIOS (SEM runQuery) ====== */
 async function carregarComentarios(){
   if(!videoId || !listaEl) return;
 
-  const queryUrl =
-`https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=${FIREBASE_API_KEY}`;
-
-  const body = {
-    structuredQuery: {
-      from: [{ collectionId: "comments" }],
-      where: {
-        fieldFilter: {
-          field: { fieldPath: "filmId" },
-          op: "EQUAL",
-          value: { stringValue: videoId }
-        }
-      },
-      orderBy: [{
-        field:{ fieldPath:"createdAt" },
-        direction:"DESCENDING"
-      }]
-    }
-  };
+  const listUrl =
+`https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/comments?key=${FIREBASE_API_KEY}`;
 
   try{
-    const res = await fetch(queryUrl,{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(body)
-    });
-
+    const res = await fetch(listUrl);
     const data = await res.json().catch(()=>null);
 
-    // ✅ Se deu erro de permissão / query / etc, agora aparece
     if(!res.ok || data?.error){
-      console.error("Erro ao buscar comentários (runQuery):", res.status, data);
+      console.error("Erro ao listar comments:", res.status, data);
       listaEl.innerHTML = `<div class="comentario-item">Erro ao carregar comentários.</div>`;
       return;
     }
 
-    const docs = (data || []).map(d => d.document).filter(Boolean);
+    const docs = (data?.documents || []);
 
-    if(docs.length === 0){
+    // Filtra pelo filmId
+    const filtrados = docs.filter(d => {
+      const f = d.fields || {};
+      return (f.filmId?.stringValue || "") === videoId;
+    });
+
+    // Ordena por createdAt desc
+    filtrados.sort((a,b)=>{
+      const at = a.fields?.createdAt?.timestampValue || "";
+      const bt = b.fields?.createdAt?.timestampValue || "";
+      return bt.localeCompare(at);
+    });
+
+    if(filtrados.length === 0){
       listaEl.innerHTML = `<div class="comentario-item">Sem comentários ainda.</div>`;
       return;
     }
 
-    listaEl.innerHTML = docs.map(d=>{
+    listaEl.innerHTML = filtrados.map(d=>{
       const f = d.fields || {};
       const when = f.createdAt?.timestampValue
         ? new Date(f.createdAt.timestampValue).toLocaleString("pt-BR")
@@ -97,7 +85,7 @@ async function carregarComentarios(){
   }
 }
 
-/* ====== ENVIAR COMENTÁRIO (leve ajuste) ====== */
+/* ====== ENVIAR COMENTÁRIO ====== */
 async function enviarComentario(){
   if(!videoId || !textoEl || !textoEl.value.trim()) return;
 
@@ -117,7 +105,6 @@ async function enviarComentario(){
       body: JSON.stringify(payload)
     });
 
-    // ✅ Se der erro no POST, agora aparece
     if(!res.ok){
       const err = await res.json().catch(()=>null);
       console.error("Erro ao enviar comentário:", res.status, err);
