@@ -1,167 +1,201 @@
-/* Player FreeFlix (profissional: Firebase SDK + Firestore realtime) */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  onSnapshot,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+/* Player FreeFlix (fix definitivo comments via Firestore REST) */
+(() => {
+  // ====== Helpers ======
+  const $ = (id) => document.getElementById(id);
 
-import {
-  getAuth,
-  signInAnonymously,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  const escapeHTML = (str) =>
+    String(str ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
 
-/* ===== Player ===== */
-const params = new URLSearchParams(window.location.search);
-const videoId = params.get("id");
-const titulo = decodeURIComponent(params.get("titulo") || "Assistir filme");
-
-const tituloEl = document.getElementById("tituloFilme");
-if (tituloEl) tituloEl.innerText = titulo;
-document.title = titulo + " | FreeFlix";
-
-if (videoId) {
-  const iframe = document.getElementById("playerIframe");
-  if (iframe) iframe.src = "https://go.screenpal.com/player/" + videoId + "?embed=1";
-}
-
-/* ===== Firebase Config (use a sua config do Firebase Console) =====
-   Firebase Console > Project settings > Your apps > Web app > Firebase SDK snippet (Config)
-*/
-const firebaseConfig = {
-  apiKey: "AIzaSyAP6Y1uiOEafLGfry27UiBso1ShV1C2uJk",
-  authDomain: "freeflix-82019.firebaseapp.com",
-  projectId: "freeflix-82019",
-  // storageBucket: "freeflix-82019.appspot.com",
-  // messagingSenderId: "...",
-  // appId: "..."
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-
-/* ===== DOM ===== */
-const listaEl = document.getElementById("listaComentarios");
-const nomeEl = document.getElementById("nomeComentario");
-const textoEl = document.getElementById("textoComentario");
-const btn = document.getElementById("btnEnviarComentario");
-
-/* ===== Helpers ===== */
-function escapeHtml(str = "") {
-  return str.replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  }[m]));
-}
-
-function renderComentarios(docs) {
-  if (!listaEl) return;
-
-  if (!docs.length) {
-    listaEl.innerHTML = `<div class="comentario-item">Sem comentários ainda.</div>`;
-    return;
-  }
-
-  listaEl.innerHTML = docs.map((doc) => {
-    const f = doc.data();
-    const when = f.createdAt?.toDate
-      ? f.createdAt.toDate().toLocaleString("pt-BR")
-      : "";
-
-    return `
-      <div class="comentario-item">
-        <div class="comentario-topo">
-          <div class="comentario-nome">${escapeHtml(f.name || "Anônimo")}</div>
-          <div>${escapeHtml(when)}</div>
-        </div>
-        <div class="comentario-texto">${escapeHtml(f.text || "")}</div>
+  const setStatus = (msg, isError = false) => {
+    if (!listaEl) return;
+    listaEl.innerHTML = `
+      <div class="comentario-item" style="opacity:.9; ${isError ? "border:1px solid rgba(255,0,0,.25);" : ""}">
+        ${escapeHTML(msg)}
       </div>
     `;
-  }).join("");
-}
+  };
 
-/* ===== Realtime listener (profissa) ===== */
-let unsubscribe = null;
+  // ====== Query params / player ======
+  const params = new URLSearchParams(window.location.search);
+  const videoId = params.get("id");
+  const titulo = decodeURIComponent(params.get("titulo") || "Assistir filme");
 
-function iniciarListenerComentarios() {
+  const tituloEl = $("tituloFilme");
+  if (tituloEl) tituloEl.innerText = titulo;
+  document.title = `${titulo} | FreeFlix`;
+
+  if (videoId) {
+    const iframe = $("playerIframe");
+    if (iframe) iframe.src = `https://go.screenpal.com/player/${videoId}?embed=1`;
+  }
+
+  // ====== Firestore REST config ======
+  const FIREBASE_PROJECT_ID = "freeflix-82019";
+  const FIREBASE_API_KEY = "AIzaSyAP6Y1uiOEafLGfry27UiBso1ShV1C2uJk";
+
+  const listUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/comments?key=${FIREBASE_API_KEY}`;
+  const createUrl = listUrl; // POST no mesmo endpoint cria doc com id aleatório
+
+  // ====== DOM ======
+  const listaEl = $("listaComentarios");
+  const nomeEl = $("nomeComentario");
+  const textoEl = $("textoComentario");
+  const btn = $("btnEnviarComentario");
+
+  // Sem videoId ou sem lista, não faz nada
   if (!videoId || !listaEl) return;
 
-  // Query: comentários do filme, mais recentes primeiro (limite opcional)
-  const q = query(
-    collection(db, "comments"),
-    where("filmId", "==", videoId),
-    orderBy("createdAt", "desc"),
-    limit(50)
-  );
-
-  // Realtime
-  unsubscribe = onSnapshot(
-    q,
-    (snap) => renderComentarios(snap.docs),
-    (err) => {
-      console.error("Erro ao ouvir comentários:", err);
-      listaEl.innerHTML = `<div class="comentario-item">Erro ao carregar comentários.</div>`;
+  // ====== Render ======
+  function renderComentarios(docs) {
+    if (!docs || docs.length === 0) {
+      setStatus("Sem comentários ainda.");
+      return;
     }
-  );
-}
 
-/* ===== Enviar comentário ===== */
-async function enviarComentario() {
-  if (!videoId || !textoEl) return;
+    listaEl.innerHTML = docs
+      .map((d) => {
+        const f = d.fields || {};
+        const name = f.name?.stringValue || "Anônimo";
+        const text = f.text?.stringValue || "";
 
-  const text = (textoEl.value || "").trim();
-  if (!text) return;
+        const whenIso = f.createdAt?.timestampValue || "";
+        const when = whenIso ? new Date(whenIso).toLocaleString("pt-BR") : "";
 
-  const name = (nomeEl && nomeEl.value ? nomeEl.value : "Anônimo").trim();
-
-  try {
-    await addDoc(collection(db, "comments"), {
-      filmId: videoId,
-      name: name || "Anônimo",
-      text,
-      createdAt: serverTimestamp()
-    });
-
-    textoEl.value = "";
-  } catch (e) {
-    console.error("Erro ao enviar comentário:", e);
-    alert("Não foi possível enviar seu comentário agora.");
+        return `
+          <div class="comentario-item">
+            <div class="comentario-topo">
+              <div class="comentario-nome">${escapeHTML(name)}</div>
+              <div>${escapeHTML(when)}</div>
+            </div>
+            <div class="comentario-texto">${escapeHTML(text)}</div>
+          </div>
+        `;
+      })
+      .join("");
   }
-}
 
-/* ===== Auth anônimo (recomendado) ===== */
-async function garantirAuthAnonimo() {
-  // Se você não quiser auth, pode remover tudo de auth e deixar rules abertas.
-  // Mas o ideal é usar auth anônimo pra melhorar segurança.
-  await signInAnonymously(auth);
-}
+  // ====== Load (LIST + filter no front) ======
+  async function carregarComentarios() {
+    try {
+      setStatus("Carregando comentários...");
 
-if (btn) btn.addEventListener("click", enviarComentario);
+      const res = await fetch(listUrl, { method: "GET" });
+      const data = await res.json().catch(() => null);
 
-/* ===== Boot ===== */
-(async () => {
-  try {
-    await garantirAuthAnonimo();
+      if (!res.ok || data?.error) {
+        const msg =
+          data?.error?.message ||
+          `Falha ao carregar (HTTP ${res.status}). Verifique regras do Firestore.`;
+        setStatus(`Erro ao carregar comentários: ${msg}`, true);
+        return;
+      }
 
-    // espera o auth estar pronto (só pra garantir rules)
-    onAuthStateChanged(auth, (user) => {
-      if (!user) return;
-      if (unsubscribe) unsubscribe();
-      iniciarListenerComentarios();
-    });
-  } catch (e) {
-    console.error("Erro auth/firebase:", e);
-    if (listaEl) listaEl.innerHTML = `<div class="comentario-item">Erro ao carregar comentários.</div>`;
+      const docs = Array.isArray(data?.documents) ? data.documents : [];
+
+      // filtra pelo filmId
+      const filtrados = docs.filter((d) => (d.fields?.filmId?.stringValue || "") === videoId);
+
+      // ordena por createdAt desc
+      filtrados.sort((a, b) => {
+        const at = a.fields?.createdAt?.timestampValue || "";
+        const bt = b.fields?.createdAt?.timestampValue || "";
+        return bt.localeCompare(at);
+      });
+
+      renderComentarios(filtrados);
+    } catch (e) {
+      setStatus(`Erro ao carregar comentários: ${e?.message || e}`, true);
+    }
   }
+
+  // ====== Send ======
+  let sending = false;
+
+  async function enviarComentario() {
+    if (sending) return;
+    if (!textoEl) return;
+
+    const text = (textoEl.value || "").trim();
+    if (!text) return;
+
+    // limites básicos
+    const name = (nomeEl?.value || "").trim().slice(0, 25) || "Anônimo";
+    const safeText = text.slice(0, 300);
+
+    // anti-spam simples (1 a cada 4s por navegador)
+    const now = Date.now();
+    const last = Number(localStorage.getItem("ff_last_comment_ts") || "0");
+    if (now - last < 4000) {
+      alert("Aguarde alguns segundos antes de enviar outro comentário.");
+      return;
+    }
+
+    const payload = {
+      fields: {
+        filmId: { stringValue: videoId },
+        name: { stringValue: name },
+        text: { stringValue: safeText },
+        createdAt: { timestampValue: new Date().toISOString() },
+      },
+    };
+
+    // optimistic UI: mostra na hora
+    const optimisticDoc = { fields: payload.fields };
+    const currentHTML = listaEl.innerHTML;
+    listaEl.innerHTML =
+      `
+      <div class="comentario-item" style="opacity:.75">
+        <div class="comentario-topo">
+          <div class="comentario-nome">${escapeHTML(name)}</div>
+          <div>${escapeHTML(new Date().toLocaleString("pt-BR"))}</div>
+        </div>
+        <div class="comentario-texto">${escapeHTML(safeText)}</div>
+      </div>
+    ` + currentHTML;
+
+    sending = true;
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await fetch(createUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || data?.error) {
+        const msg =
+          data?.error?.message ||
+          `Falha ao enviar (HTTP ${res.status}). Verifique regras do Firestore.`;
+
+        // volta UI (remove optimistic)
+        await carregarComentarios();
+        alert("Não foi possível enviar seu comentário agora.\n\n" + msg);
+        return;
+      }
+
+      // ok
+      localStorage.setItem("ff_last_comment_ts", String(Date.now()));
+      textoEl.value = "";
+      await carregarComentarios();
+    } catch (e) {
+      await carregarComentarios();
+      alert("Não foi possível enviar seu comentário agora.\n\n" + (e?.message || e));
+    } finally {
+      sending = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  if (btn) btn.addEventListener("click", enviarComentario);
+
+  // load inicial
+  carregarComentarios();
 })();
