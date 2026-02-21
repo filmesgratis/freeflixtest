@@ -1,6 +1,6 @@
 // ====== CONFIG ======
 const FIREBASE_PROJECT_ID = "freeflix-6a0d4";
-const FIREBASE_API_KEY = "SUA_API_KEY_AQUI"; // <-- coloque sua key aqui (a mesma que você já usa)
+const FIREBASE_API_KEY = "AIzaSyAP6Y1uiOEafLGfry27UiBso1ShV1C2uJk"; // <-- coloque sua key aqui (a mesma que você já usa)
 
 // ====== ELEMENTOS ======
 const nomeEl = document.getElementById("nome");
