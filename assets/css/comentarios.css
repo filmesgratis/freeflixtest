@@ -1,0 +1,31 @@
+.container{
+  max-width: 900px;
+  margin: 60px auto;
+  padding: 0 20px;
+  text-align:center;
+}
+.container h1{ font-size: 34px; margin-bottom: 10px; }
+.container p{ color:#aaa; margin-bottom: 15px; font-size: 16px; }
+.comment-count{ margin-bottom: 25px; font-size: 16px; color:#ccc; }
+
+#cusdis_thread{
+  background:#0f0f0f;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 30px;
+}
+#cusdis_thread iframe{ min-height: 380px; }
+
+/* Campos brancos */
+#cusdis_thread input,
+#cusdis_thread textarea{
+  background:#fff !important;
+  color:#111 !important;
+  border: 1px solid #ccc !important;
+  border-radius: 6px;
+}
+#cusdis_thread input::placeholder,
+#cusdis_thread textarea::placeholder{ color:#888; }
+#cusdis_thread label,
+#cusdis_thread .comment-form *,
+#cusdis_thread .comment-input *{ color:#111 !important; }

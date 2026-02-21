@@ -1,0 +1,43 @@
+/* Header fixo e consistente (PC + mobile) */
+.site-header{
+  position: fixed;
+  top:0; left:0; right:0;
+  height: var(--header-h);
+  background: rgba(0,0,0,.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  z-index: 999;
+}
+.header-inner{
+  height:100%;
+  padding: 0 var(--pad-x);
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.brand img{ height: 38px; display:block; }
+@media (max-width: 768px){
+  .brand img{ height: 32px; }
+}
+.header-actions{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+}
+.btn-top{
+  text-decoration:none;
+  padding: 10px 22px;
+  border-radius: 25px;
+  background: var(--red);
+  color:#fff;
+  font-size: 14px;
+  font-weight: bold;
+  transition:.3s;
+  line-height:1;
+  white-space: nowrap;
+}
+.btn-top:hover{ background: var(--red-dark); }
+@media (max-width: 768px){
+  .btn-top{ padding: 8px 16px; font-size: 13px; }
+}

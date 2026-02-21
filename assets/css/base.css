@@ -1,0 +1,28 @@
+/* FreeFlix - Base (organizado) */
+*{ margin:0; padding:0; box-sizing:border-box; font-family: Arial, Helvetica, sans-serif; }
+html, body{ height:100%; }
+body{
+  background:#000;
+  color:#fff;
+  overflow-x:hidden;
+}
+:root{
+  --header-h: 80px;
+  --pad-x: 40px;
+  --red: #e50914;
+  --red-dark: #b20710;
+  --border: #222;
+}
+
+@media (max-width: 768px){
+  :root{
+    --header-h: 64px;
+    --pad-x: 20px;
+  }
+}
+
+a{ color:inherit; }
+.container{ max-width: 1200px; margin: 0 auto; }
+
+/* espaço pro header fixo */
+body{ padding-top: var(--header-h); }
